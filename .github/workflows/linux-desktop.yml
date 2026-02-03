@@ -1,61 +1,100 @@
-name: LINUX DESKTOP - CLOUDFLARE
+name: RICH LINUX (SMART GNOME) - FIXED
+
 on:
-  workflow_dispatch
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 9999
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
 
     steps:
-      - name: Setup Cloudflared
-        uses: AnimMouse/setup-cloudflared@v2
+      - name: Install Cloudflared
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
 
-      - name: Install Desktop Environment & VNC
+      - name: Smart GNOME Install (No Bloat)
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop xfce4 xfce4-goodies tightvncserver
-          echo "✅ Desktop Environment Installed!"
+          
+          # Remove heavy tools that cause hangs
+          sudo apt-get remove -y --purge man-db firewalld ufw || true
+          
+          # Install ONLY the GUI parts of GNOME (Skipping Kernel/System updates)
+          # Using --no-install-recommends to speed up drastically
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            gnome-session gnome-shell gnome-terminal nautilus \
+            dbus-x11 x11-xserver-utils xorg \
+            adwaita-icon-theme-full fonts-cantarell
+          
+          echo "✅ GUI Installed (Lightweight Mode)"
 
-      - name: Configure VNC Server
+      - name: Install XRDP (Remote Desktop)
         run: |
-          mkdir -p ~/.vnc
-          echo "P@ssw0rd123!" | vncpasswd -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
-          echo '#!/bin/bash
-          xrdb $HOME/.Xresources
-          startxfce4 &' > ~/.vnc/xstartup
-          chmod +x ~/.vnc/xstartup
-          echo "✅ VNC Configured!"
+          sudo apt-get install -y --no-install-recommends xrdp
+          sudo adduser xrdp ssl-cert
+          
+          # Configure XRDP to use GNOME
+          echo "gnome-session" > ~/.xsession
+          sudo sed -i 's/3389/3389/g' /etc/xrdp/xrdp.ini
+          sudo systemctl enable xrdp
+          sudo service xrdp start
 
-      - name: Start VNC Server
+      - name: Install VS Code & Antigravity (Chrome)
         run: |
-          vncserver :1 -geometry 1920x1080 -depth 24
-          echo "✅ VNC Server Started on port 5901!"
+          # VS Code
+          wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+          sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+          echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y code
 
-      - name: Start Cloudflare Tunnel
-        run: |
-          echo "============================================"
-          echo "🚀 LINUX UBUNTU DESKTOP - CLOUDFLARE TUNNEL"
-          echo "============================================"
-          echo ""
-          cloudflared tunnel --url tcp://localhost:5901 > tunnel.log 2>&1 &
-          sleep 15
-          cat tunnel.log | grep -o 'https://[^[:space:]]*trycloudflare.com'
-          echo ""
-          echo "✅ TUNNEL STARTED!"
-          echo ""
-          echo "📋 CONNECTION DETAILS:"
-          echo "   VNC PASSWORD: P@ssw0rd123!"
-          echo "   RESOLUTION: 1920x1080"
-          echo "   OS: Ubuntu 22.04 LTS"
-          echo "   DESKTOP: XFCE4"
-          echo "============================================"
+          # Chrome (for Antigravity)
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
 
-      - name: Keep Session Alive
+          # Desktop Shortcut
+          mkdir -p ~/Desktop
+          cat > ~/Desktop/Antigravity.desktop <<EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Google Antigravity
+          Exec=google-chrome --app=https://antigravity.google/ --no-sandbox
+          Icon=google-chrome
+          Type=Application
+          EOF
+          chmod +x ~/Desktop/Antigravity.desktop
+
+      - name: Setup User (runner)
         run: |
-          echo "⏳ Session Active - Keeping alive..."
-          while true; do
-            sleep 60
-            echo "✓ Active - $(date '+%H:%M:%S')"
+          sudo useradd -m -s /bin/bash runner || true
+          echo "runner:Antigravity2026!" | sudo chpasswd
+          sudo usermod -aG sudo runner
+
+      - name: Start Cloudflare Tunnel (RDP)
+        run: |
+          /usr/local/bin/cloudflared tunnel --url tcp://localhost:3389 > tunnel.log 2>&1 &
+          
+          echo "Waiting for URL..."
+          for i in {1..30}; do
+            sleep 2
+            TUN=$(grep -Eo 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' tunnel.log | head -1)
+            if [ -n "$TUN" ]; then echo "🌐 Tunnel: $TUN"; break; fi
           done
+          echo "$TUN" > tunnel_url.txt
+
+      - name: SHOW CONNECT INFO
+        run: |
+          TUN=$(cat tunnel_url.txt)
+          echo "==================================================="
+          echo "   RICH GNOME DESKTOP READY (Smart Version)"
+          echo "==================================================="
+          echo "Command: cloudflared access tcp --hostname ${TUN#https://} --url localhost:3389"
+          echo "User   : runner"
+          echo "Pass   : Antigravity2026!"
+          echo "==================================================="
+
+      - name: Keep Alive
+        run: sleep 21600
