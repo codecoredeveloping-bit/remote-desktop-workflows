@@ -9,16 +9,14 @@ jobs:
       - name: Install Ngrok
         run: brew install ngrok/ngrok/ngrok
 
-     - name: Configure VNC
+      - name: Configure VNC
         run: |
-          # Ορισμός κωδικού VNC
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
             -clientopts -setvnclegacy -vnclegacy yes \
             -setvncpw -vncpw P@ssw0rd123! \
             -restart -agent -privs -all
           
-          # Ρητή ανάθεση δικαιωμάτων στον χρήστη runner
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -configure -users runner -access -on -privs -all
 
