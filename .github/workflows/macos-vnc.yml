@@ -19,14 +19,12 @@ jobs:
           sudo defaults write /var/db/launchd.db/com.apple.launchd/overrides.plist com.apple.screensharing -dict Disabled -bool false
           echo "✅ VNC Enabled!"
 
-     - name: Set VNC Password (Legacy VNC)
+      - name: Set VNC Password (Legacy VNC)
         run: |
-          # Ορισμός κωδικού μέσω kickstart
           echo "P@ssw0rd123!" | sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on -restart -agent -privs -all \
             -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw P@ssw0rd123!
           
-          # Επανεκκίνηση υπηρεσιών για να εφαρμοστούν οι αλλαγές
           sudo launchctl unload /System/Library/LaunchDaemons/com.apple.screensharing.plist 2>/dev/null || true
           sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
           echo "✅ VNC Password Set!"
@@ -36,18 +34,10 @@ jobs:
           echo "============================================"
           echo "🚀 macOS VNC - CLOUDFLARE TUNNEL"
           echo "============================================"
-          echo ""
           cloudflared tunnel --url tcp://localhost:5900 > tunnel.log 2>&1 &
-          sleep 15
+          sleep 30
           cat tunnel.log | grep -o 'https://[^[:space:]]*trycloudflare.com' || echo "Check logs for tunnel URL"
-          echo ""
           echo "✅ TUNNEL STARTED!"
-          echo ""
-          echo "📋 CONNECTION DETAILS:"
-          echo "   PASSWORD: P@ssw0rd123!"
-          echo "   OS: macOS Monterey/Ventura"
-          echo "   Architecture: $(uname -m)"
-          echo "============================================"
 
       - name: Keep Session Alive
         run: |
