@@ -1,48 +1,32 @@
-name: macOS VNC - CLOUDFLARE
+name: macOS VNC - NGROK
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 9999
-
     steps:
-      - name: Install Cloudflared
-        run: |
-          brew install cloudflare/cloudflare/cloudflared
-          echo "✅ Cloudflared Installed!"
+      - name: Install Ngrok
+        run: brew install ngrok/ngrok/ngrok
 
-      - name: Configure VNC & Password
+      - name: Configure VNC
         run: |
-          # Ορισμός του password απευθείας για το VNC (Legacy mode)
-          # Χρησιμοποιούμε το 'sudo' για να αποφύγουμε το σφάλμα άδειας
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
             -clientopts -setvnclegacy -vnclegacy yes \
             -setvncpw -vncpw P@ssw0rd123! \
             -restart -agent -privs -all
 
-          # Ενεργοποίηση για όλους τους χρήστες
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -configure -allowAccessFor -allUsers -privs -all
-
-          echo "✅ VNC Configured with Password!"
-
-      - name: Start Cloudflare Tunnel
+      - name: Start Ngrok Tunnel
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         run: |
-          echo "============================================"
-          echo "🚀 macOS VNC - CLOUDFLARE TUNNEL"
-          echo "============================================"
-          cloudflared tunnel --url tcp://5900 > tunnel.log 2>&1 &
-          sleep 30
-          cat tunnel.log | grep -o 'https://[^[:space:]]*trycloudflare.com' || echo "Check logs for tunnel URL"
-          echo "✅ TUNNEL STARTED!"
+          ngrok config add-authtoken $NGROK_AUTH_TOKEN
+          ngrok tcp 5900 --log=stdout > ngrok.log &
+          sleep 10
+          curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url'
 
-      - name: Keep Session Alive
+      - name: Keep Alive
         run: |
-          echo "⏳ Session Active - Keeping alive..."
-          while true; do
-            sleep 60
-            echo "✓ Active - $(date '+%H:%M:%S')"
-          done
+          echo "⏳ Connected! Copy the address above (e.g., tcp://0.tcp.ngrok.io:12345)"
+          while true; do sleep 60; done
