@@ -13,32 +13,28 @@ jobs:
           brew install cloudflare/cloudflare/cloudflared
           echo "✅ Cloudflared Installed!"
 
-      - name: Enable VNC/Screen Sharing
+      - name: Configure VNC & Password
         run: |
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -restart -agent -privs -all -allowAccessFor -allUsers
-          sudo defaults write /var/db/launchd.db/com.apple.launchd/overrides.plist com.apple.screensharing -dict Disabled -bool false
-          echo "✅ VNC Enabled!"
-
-      - name: Set VNC Password (Legacy VNC)
-        run: |
-          # Ορισμός κωδικού συστήματος για τον χρήστη runner
-          echo "P@ssw0rd123!" | sudo dscl . -passwd /Users/runner P@ssw0rd123!
-          
-          # Ορισμός κωδικού VNC
+          # Ορισμός του password απευθείας για το VNC (Legacy mode)
+          # Χρησιμοποιούμε το 'sudo' για να αποφύγουμε το σφάλμα άδειας
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate -configure -access -on -restart -agent -privs -all \
-            -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw P@ssw0rd123!
-          
-          sudo launchctl unload /System/Library/LaunchDaemons/com.apple.screensharing.plist 2>/dev/null || true
-          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
-          echo "✅ VNC Password Set!"
+            -activate -configure -access -on \
+            -clientopts -setvnclegacy -vnclegacy yes \
+            -setvncpw -vncpw P@ssw0rd123! \
+            -restart -agent -privs -all
+
+          # Ενεργοποίηση για όλους τους χρήστες
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -configure -allowAccessFor -allUsers -privs -all
+
+          echo "✅ VNC Configured with Password!"
 
       - name: Start Cloudflare Tunnel
         run: |
           echo "============================================"
           echo "🚀 macOS VNC - CLOUDFLARE TUNNEL"
           echo "============================================"
-          cloudflared tunnel --url tcp://localhost:5900 > tunnel.log 2>&1 &
+          cloudflared tunnel --url tcp://5900 > tunnel.log 2>&1 &
           sleep 30
           cat tunnel.log | grep -o 'https://[^[:space:]]*trycloudflare.com' || echo "Check logs for tunnel URL"
           echo "✅ TUNNEL STARTED!"
