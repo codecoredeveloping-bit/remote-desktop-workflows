@@ -21,7 +21,11 @@ jobs:
 
       - name: Set VNC Password (Legacy VNC)
         run: |
-          echo "P@ssw0rd123!" | sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+          # Ορισμός κωδικού συστήματος για τον χρήστη runner
+          echo "P@ssw0rd123!" | sudo dscl . -passwd /Users/runner P@ssw0rd123!
+          
+          # Ορισμός κωδικού VNC
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on -restart -agent -privs -all \
             -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw P@ssw0rd123!
           
